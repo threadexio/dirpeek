@@ -16,7 +16,7 @@ int Get(string url)
 vector<string> split(string text, char sep)
 {
     vector<string> tokens;
-    tokens.push_back("/");
+    tokens.push_back(" ");
     if (text == "-")
     {
         return tokens;
