@@ -13,6 +13,19 @@ int Get(string url)
     return cpr::Get(cpr::Url{url.c_str()}).status_code;
 }
 
+string trim (string x)
+{
+    if (x[0] == ' ')
+    {
+        x.erase(0, 1);
+    }
+    if (x[x.length() - 1] == ' ')
+    {
+        x.erase(x.length() - 1, x.length());
+    }
+    return x;
+}
+
 vector<string> split(string text, char sep)
 {
     vector<string> tokens;
@@ -37,7 +50,7 @@ void dirbust(string host, vector<string> list, int start, int offset, int lines,
     {
         for (int u = 0; u < exts.size(); u++)
         {
-            string url = host + "/" + list[i] + exts[u];
+            string url = trim((host + "/" + list[i] + exts[u]));
             int r = Get(url);
             if (r == 404)
             {
