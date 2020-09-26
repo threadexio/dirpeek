@@ -10,10 +10,12 @@ namespace po = boost::program_options;
 
 int Get(string url)
 {
-    return cpr::Get(cpr::Url{url.c_str()}).status_code;
+    cpr::Response req = cpr::Get(cpr::Url{url.c_str()});
+
+    return req.status_code;
 }
 
-string trim (string x)
+string trim(string x)
 {
     if (x[0] == ' ')
     {
@@ -26,31 +28,28 @@ string trim (string x)
     return x;
 }
 
-vector<string> split(string text, char sep)
+vector<string> split(const string &text, char sep)
 {
     vector<string> tokens;
-    tokens.push_back(" ");
-    if (text == "-")
-    {
-        return tokens;
-    }
     size_t start = 0, end = 0;
     while ((end = text.find(sep, start)) != string::npos)
     {
-        tokens.push_back("." + text.substr(start, end - start));
+        tokens.push_back(text.substr(start, end - start));
         start = end + 1;
     }
-    tokens.push_back("." + text.substr(start));
+    tokens.push_back(text.substr(start));
     return tokens;
 }
 
-void dirbust(string host, vector<string> list, int start, int offset, int lines, vector<string> exts)
+void dirbust(string host, vector<string> list, vector<string> extensions, int start, int offset)
 {
     for (int i = start; i <= list.size();)
     {
-        for (int u = 0; u < exts.size(); u++)
+        for (int u = 0; u < extensions.size(); u++)
         {
-            string url = trim((host + "/" + list[i] + exts[u]));
+
+            string url = trim(host + "/" + list[i] + extensions[u]);
+
             int r = Get(url);
             if (r == 404)
             {
@@ -62,10 +61,11 @@ void dirbust(string host, vector<string> list, int start, int offset, int lines,
             }
             else
             {
-                cout << " | " << list[i] << exts[u] << " (Status: \033[1m" << r << "\033[0m)\n";
+                cout << " | " << list[i] << extensions[u] << " (Status: \033[1m" << r << "\033[0m)\n";
             }
         }
-        if (i + offset >= lines)
+
+        if (i + offset >= list.size())
         {
             break;
         }
@@ -75,15 +75,14 @@ void dirbust(string host, vector<string> list, int start, int offset, int lines,
 
 int main(int argc, char *argv[])
 {
-    int threadNum;             // number of threads
-    vector<thread> threadPool; // thread vector
+    int threadNum;                                         // Number of threads
+    vector<thread> threadPool;                             // Thread vector
 
-    string host;     // Host string
-    string wordlist; // Wordlist string
+    string host;                                           // Host string
+    string wordlist;                                       // Wordlist string
 
-    vector<string> list;       // Wordlist vector
-    vector<string> extensions; // Extension vector
-
+    vector<string> list;                                   // Wordlist vector
+    vector<string> extensions;                             // Extension vector
     cout << "\n\t      Yet Another\n"                      //
          << "\t    Directory Buster\n\n"                   //
          << "\tBy threadexio on Github\n"                  //  The header
@@ -91,7 +90,7 @@ int main(int argc, char *argv[])
          << "_______________________________________\n\n"; //
 
     po::options_description desc("Flags");
-    desc.add_options()("help,h", "This help message")("threads,t", po::value<int>(&threadNum)->default_value(10), "Theads to use")("url,u", po::value<string>(&host), "Url to test")("wordlist,w", po::value<string>(&wordlist), "Wordlist to use")("extensions,x", po::value<string>(), "Extensions to use");
+    desc.add_options()("help", "This help message")("threads,t", po::value<int>(&threadNum)->default_value(10), "Theads to use")("url,u", po::value<string>(&host), "Url to test")("wordlist,w", po::value<string>(&wordlist), "Wordlist to use")("extensions,x", po::value<string>(), "Extensions to use");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -111,14 +110,16 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    // Check if any extensions were given
+    // Check if any extensions were given and add them to a usable vector
+    extensions.push_back(" ");
+    extensions.push_back("/");
     if (vm.count("extensions"))
     {
-        extensions = split(vm["extensions"].as<string>(), ',');
-    }
-    else
-    {
-        extensions.push_back("/");
+        vector<string> tmp = split(vm["extensions"].as<string>(), ',');
+        for (int i = 0; i < tmp.size(); i++)
+        {
+            extensions.push_back("." + tmp[i]);
+        }
     }
 
     // The stuff under the header
@@ -162,7 +163,7 @@ int main(int argc, char *argv[])
     // Populate the thread pool and start
     for (int i = 0; i < threadNum; i++)
     {
-        threadPool.push_back(thread(dirbust, host, list, i, threadNum, list.size(), extensions));
+        threadPool.push_back(thread(dirbust, host, list, extensions, i, threadNum));
     }
 
     // Wait for the threads to exit
