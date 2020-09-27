@@ -20,6 +20,8 @@ Honestly you shouldn't, there are much better alternatives,<br>
 
 ## Installation
 
+**NOTE**: You can install evrything required by running `build.sh`, for distributions that use the `apt` package manager
+
 **NOTE**: There is a precompiled binary for 64-bit systems, but you still need the libraries
 
 1. Installing the required libraries
