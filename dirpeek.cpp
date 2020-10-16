@@ -8,24 +8,15 @@
 using namespace std;
 namespace po = boost::program_options;
 
+// Stuff for the printer thread
+bool dirbusting = false;
+vector<string> printbuffer;
+
 int Get(string url)
 {
     cpr::Response req = cpr::Get(cpr::Url{url.c_str()});
 
     return req.status_code;
-}
-
-string trim(string x)
-{
-    if (x[0] == ' ')
-    {
-        x.erase(0, 1);
-    }
-    if (x[x.length() - 1] == ' ')
-    {
-        x.erase(x.length() - 1, x.length());
-    }
-    return x;
 }
 
 vector<string> split(const string &text, char sep)
@@ -41,45 +32,48 @@ vector<string> split(const string &text, char sep)
     return tokens;
 }
 
+void print()
+{
+    while (dirbusting)
+    {
+        for (int i = 0; i < printbuffer.size(); i++)
+        {
+            cout << printbuffer[i] << endl;
+            printbuffer.erase(printbuffer.begin() + i);
+        }
+    }
+}
+
 void dirbust(string host, vector<string> list, vector<string> extensions, int start, int offset)
 {
     for (int i = start; i <= list.size();)
     {
         for (int u = 0; u < extensions.size(); u++)
         {
-
-            string url = trim(host + "/" + list[i] + extensions[u]);
-
+            string url = host + list[i] + extensions[u];
             int r = Get(url);
-            if (r == 404)
+            // Status code filtering
+            if (r == 200 || r == 204 || r == 301 || r == 302 || r == 307 || r == 401 || r == 403)
             {
-                continue;
-            }
-            else if (r == 0)
-            {
-                continue;
-            }
-            else
-            {
-                cout << " | " << list[i] << extensions[u] << " (Status: \033[1m" << r << "\033[0m)\n";
+                printbuffer.push_back(" | " + list[i] + extensions[u] + " (Status: \033[1m" + to_string(r) + "\033[0m)");
             }
         }
 
-        if (i + offset >= list.size())
+        i += offset;
+        if (i >= list.size())
         {
             break;
         }
-        i += offset;
     }
 }
 
 int main(int argc, char *argv[])
 {
-    int threadNum;                                         // Number of threads
-    vector<thread> threadPool;                             // Thread vector
+    int threadNum;             // Number of threads
+    vector<thread> threadPool; // Thread vector
 
-    string host;                                           // Host string
-    string wordlist;                                       // Wordlist string
+    string host;     // Host string
+    string wordlist; // Wordlist string
 
     vector<string> list;                                   // Wordlist vector
     vector<string> extensions;                             // Extension vector
@@ -100,19 +94,24 @@ int main(int argc, char *argv[])
     if (vm.count("help"))
     {
         cout << desc << "\n";
-        return 1;
+        return 0;
     }
 
     // Check if the url and wordlist flags are set
     if (!vm.count("url") || !vm.count("wordlist"))
     {
         cout << "Flags -u and -w are required\n";
-        return 2;
+        return 1;
+    }
+
+    // Check if the host has the required http scheme
+    if (host[host.length()-1] != '/')
+    {
+        host += "/";
     }
 
     // Check if any extensions were given and add them to a usable vector
     extensions.push_back(" ");
-    extensions.push_back("/");
     if (vm.count("extensions"))
     {
         vector<string> tmp = split(vm["extensions"].as<string>(), ',');
@@ -154,20 +153,27 @@ int main(int argc, char *argv[])
     // Check if there are more threads than lines
     if (threadNum > list.size())
     {
-        cout << "Cannot have more threads than lines\n";
-        return 3;
+        threadNum = list.size();
     }
 
     cout << "\n\033[92m[+]\033[0m " << host << endl;
 
+    // Start the printer thread
+    thread printer = thread(print);
+    dirbusting = true;
+
     // Populate the thread pool and start
     for (int i = 0; i < threadNum; i++)
     {
-        threadPool.push_back(thread(dirbust, host, list, extensions, i, threadNum));
+        threadPool.push_back(thread(&dirbust, host, list, extensions, i, threadNum));
     }
 
     // Wait for the threads to exit
     for_each(threadPool.begin(), threadPool.end(), mem_fn(&thread::join));
 
-    cout << " |_\n";
+    // Stop the printer thread
+    dirbusting = false;
+    printer.join();
+
+    cout << " |_" << endl;
 }
