@@ -21,3 +21,4 @@ install-cpr:
 
 clean:
 	rm -drf build/*
+	mkdir build
